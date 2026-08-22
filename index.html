@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Precios e Inventario</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+    body { background-color: #f1f5f9; color: #1e293b; padding: 12px; }
+    .header-card { background: #0f172a; color: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .header-card h1 { font-size: 1.1rem; margin-bottom: 10px; }
+    .tasa-box { background: #1e293b; padding: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .tasa-box label { font-size: 0.85rem; color: #94a3b8; }
+    .tasa-box input { width: 110px; padding: 8px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; border: 1px solid #38bdf8; text-align: right; background: #0f172a; color: #38bdf8; }
+    .actions { display: flex; gap: 8px; margin-bottom: 12px; }
+    .btn-add { flex: 1; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; }
+    .search-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 12px; font-size: 0.95rem; }
+    .card { background: white; border-radius: 10px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+    .card-info h3 { font-size: 1rem; color: #0f172a; margin-bottom: 4px; }
+    .card-info p { font-size: 0.8rem; color: #64748b; }
+    .card-prices { text-align: right; }
+    .price-usd { font-size: 1.15rem; font-weight: bold; color: #0f172a; }
+    .price-bs { font-size: 0.95rem; font-weight: bold; color: #16a34a; }
+    .btn-del { background: #fee2e2; color: #ef4444; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; margin-top: 6px; cursor: pointer; }
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; padding: 16px; }
+    .modal { background: white; border-radius: 12px; padding: 20px; width: 100%; max-width: 400px; }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 12px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.85rem; color: #475569; margin-bottom: 4px; }
+    .form-group input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1rem; }
+    .modal-btns { display: flex; gap: 8px; margin-top: 16px; }
+    .modal-btns button { flex: 1; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
+    .btn-save { background: #16a34a; color: white; }
+    .btn-cancel { background: #e2e8f0; color: #475569; }
+  </style>
+</head>
+<body>
+
+  <div class="header-card">
+    <h1>Tienda - Control de Precios</h1>
+    <div class="tasa-box">
+      <label>Tasa Dólar (Bs./$):</label>
+      <input type="number" id="tasaInput" step="0.01" value="65.50" onchange="actualizarTasa()">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-add" onclick="abrirModal()">➕ Agregar Producto</button>
+  </div>
+
+  <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar producto..." oninput="renderizar()">
+
+  <div id="listaProductos"></div>
+
+  <!-- Modal Agregar Producto -->
+  <div id="modalOverlay" class="modal-overlay">
+    <div class="modal">
+      <h2>Nuevo Producto</h2>
+      <div class="form-group">
+        <label>Nombre del producto:</label>
+        <input type="text" id="nombreProd" placeholder="Ej: Harina PAN">
+      </div>
+      <div class="form-group">
+        <label>Costo de compra en $ (USD):</label>
+        <input type="number" id="costoProd" step="0.01" placeholder="Ej: 1.00">
+      </div>
+      <div class="form-group">
+        <label>% de Ganancia que deseas ganar:</label>
+        <input type="number" id="margenProd" step="1" placeholder="Ej: 25 para 25%">
+      </div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-save" onclick="guardarProducto()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let productos = JSON.parse(localStorage.getItem('mis_productos')) || [
+      { id: 1, nombre: "Arroz Blanco 1kg", costo: 1.20, margen: 20 },
+      { id: 2, nombre: "Harina de Maíz 1kg", costo: 1.10, margen: 25 },
+      { id: 3, nombre: "Aceite Vegetal 1L", costo: 2.80, margen: 15 }
+    ];
+    let tasa = parseFloat(localStorage.getItem('tasa_dolar')) || 65.50;
+    document.getElementById('tasaInput').value = tasa;
+
+    function guardarEnStorage() {
+      localStorage.setItem('mis_productos', JSON.stringify(productos));
+      localStorage.setItem('tasa_dolar', tasa);
+    }
+
+    function actualizarTasa() {
+      const val = parseFloat(document.getElementById('tasaInput').value);
+      if (!isNaN(val) && val > 0) {
+        tasa = val;
+        guardarEnStorage();
+        renderizar();
+      }
+    }
+
+    function abrirModal() {
+      document.getElementById('nombreProd').value = '';
+      document.getElementById('costoProd').value = '';
+      document.getElementById('margenProd').value = '';
+      document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+      document.getElementById('modalOverlay').style.display = 'none';
+    }
+
+    function guardarProducto() {
+      const nombre = document.getElementById('nombreProd').value.trim();
+      const costo = parseFloat(document.getElementById('costoProd').value);
+      const margen = parseFloat(document.getElementById('margenProd').value);
+
+      if (!nombre || isNaN(costo) || isNaN(margen)) {
+        alert("Por favor completa todos los campos correctamente.");
+        return;
+      }
+
+      productos.unshift({ id: Date.now(), nombre, costo, margen });
+      guardarEnStorage();
+      cerrarModal();
+      renderizar();
+    }
+
+    function eliminarProducto(id) {
+      if (confirm("¿Segura que deseas eliminar este producto?")) {
+        productos = productos.filter(p => p.id !== id);
+        guardarEnStorage();
+        renderizar();
+      }
+    }
+
+    function renderizar() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const container = document.getElementById('listaProductos');
+      container.innerHTML = '';
+
+      const filtrados = productos.filter(p => p.nombre.toLowerCase().includes(query));
+
+      if (filtrados.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#94a3b8; margin-top:20px;">No hay productos registrados.</p>';
+        return;
+      }
+
+      filtrados.forEach(p => {
+        const precioUSD = p.costo * (1 + p.margen / 100);
+        const precioBs = precioUSD * tasa;
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-info">
+            <h3>${p.nombre}</h3>
+            <p>Costo: $${p.costo.toFixed(2)} | Ganancia: ${p.margen}%</p>
+            <button class="btn-del" onclick="eliminarProducto(${p.id})">Eliminar</button>
+          </div>
+          <div class="card-prices">
+            <div class="price-usd">$${precioUSD.toFixed(2)}</div>
+            <div class="price-bs">Bs. ${precioBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    renderizar();
+  </script>
+</body>
+</html>
