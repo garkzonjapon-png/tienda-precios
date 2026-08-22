@@ -15,22 +15,30 @@
     .tasa-box input { width: 110px; padding: 8px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; border: 1px solid #38bdf8; text-align: right; background: #0f172a; color: #38bdf8; }
     .btn-add { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; margin-bottom: 12px; }
     .search-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 12px; font-size: 0.95rem; }
+    
+    /* Tarjeta de Producto */
     .card { background: white; border-radius: 10px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
     .card-info h3 { font-size: 1rem; color: #0f172a; margin-bottom: 4px; }
     .card-info p { font-size: 0.8rem; color: #64748b; }
+    .card-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .btn-action { border: none; border-radius: 6px; padding: 6px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+    .btn-edit { background: #e0f2fe; color: #0369a1; } /* Azul para editar */
+    .btn-del { background: #fee2e2; color: #ef4444; } /* Rojo para eliminar */
+    
     .card-prices { text-align: right; }
     .price-usd { font-size: 1.15rem; font-weight: bold; color: #0f172a; }
     .price-bs { font-size: 0.95rem; font-weight: bold; color: #16a34a; }
-    .btn-del { background: #fee2e2; color: #ef4444; border: none; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; margin-top: 6px; cursor: pointer; }
-    /* Modal */
+    
+    /* Modal (Formulario) */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; padding: 16px; z-index: 100; }
-    .modal { background: white; border-radius: 12px; padding: 20px; width: 100%; max-width: 400px; }
-    .modal h2 { font-size: 1.1rem; margin-bottom: 12px; }
+    .modal { background: white; border-radius: 12px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 12px; color: #0f172a; }
     .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 0.85rem; color: #475569; margin-bottom: 4px; }
-    .form-group input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: #475569; margin-bottom: 4px; font-weight: 500; }
+    .form-group input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 1rem; color: #0f172a; }
+    .form-group input:focus { outline: 2px solid #38bdf8; border-color: transparent; }
     .modal-btns { display: flex; gap: 8px; margin-top: 16px; }
-    .modal-btns button { flex: 1; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; }
+    .modal-btns button { flex: 1; padding: 10px; border-radius: 6px; font-weight: bold; border: none; cursor: pointer; font-size: 0.95rem; }
     .btn-save { background: #16a34a; color: white; }
     .btn-cancel { background: #e2e8f0; color: #475569; }
   </style>
@@ -46,15 +54,20 @@
     </div>
   </div>
 
-  <button class="btn-add" onclick="abrirModal()">➕ Agregar Producto</button>
+  <!-- Botón para NUEVO producto -->
+  <button class="btn-add" onclick="abrirModalParaNuevo()">➕ Agregar Producto</button>
   <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar producto..." oninput="renderizar()">
 
   <div id="listaProductos"></div>
 
-  <!-- Modal -->
+  <!-- Modal (Formulario único para Nuevo y Editar) -->
   <div id="modalOverlay" class="modal-overlay">
     <div class="modal">
-      <h2>Nuevo Producto</h2>
+      <h2 id="modalTitle">Nuevo Producto</h2>
+      
+      <!-- Campo oculto para guardar el ID si estamos editando -->
+      <input type="hidden" id="prodIdHidden">
+
       <div class="form-group">
         <label>Nombre del producto:</label>
         <input type="text" id="nombreProd" placeholder="Ej: Harina PAN">
@@ -69,7 +82,7 @@
       </div>
       <div class="modal-btns">
         <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
-        <button class="btn-save" onclick="guardarProducto()">Guardar</button>
+        <button class="btn-save" onclick="guardarCambiosProducto()">Guardar</button>
       </div>
     </div>
   </div>
@@ -87,10 +100,13 @@
         if (data) {
           productos = data.productos || [];
           tasa = data.tasa || 65.50;
-          document.getElementById('tasaInput').value = tasa;
+          // Actualizar input de tasa solo si no está enfocado (para no molestar al escribir)
+          if (document.activeElement !== document.getElementById('tasaInput')) {
+            document.getElementById('tasaInput').value = tasa;
+          }
           document.getElementById('statusCloud').textContent = "● Conectado a la nube (Actualizado)";
         } else {
-          document.getElementById('statusCloud').textContent = "● Conectado a la nube (Sin productos aún)";
+          document.getElementById('statusCloud').textContent = "● Conectado a la nube (Sin productos)";
         }
         renderizar();
       } catch (err) {
@@ -121,31 +137,78 @@
       }
     }
 
-    function abrirModal() {
+    // --- FUNCIONES DEL MODAL (FORMULARIO) ---
+
+    function limpiarCamposModal() {
+      document.getElementById('prodIdHidden').value = ''; // Limpiar ID oculto
       document.getElementById('nombreProd').value = '';
       document.getElementById('costoProd').value = '';
       document.getElementById('margenProd').value = '';
-      document.getElementById('modalOverlay').style.display = 'flex';
     }
 
     function cerrarModal() {
       document.getElementById('modalOverlay').style.display = 'none';
+      limpiarCamposModal();
     }
 
-    async function guardarProducto() {
+    // Abrir para crear NUEVO
+    function abrirModalParaNuevo() {
+      limpiarCamposModal();
+      document.getElementById('modalTitle').textContent = "Nuevo Producto";
+      document.getElementById('modalOverlay').style.display = 'flex';
+      document.getElementById('nombreProd').focus();
+    }
+
+    // Abrir para EDITAR uno existente
+    function abrirModalParaEditar(id) {
+      limpiarCamposModal();
+      
+      // Buscar el producto por ID
+      const producto = productos.find(p => p.id === id);
+      if (!producto) return;
+
+      // Llenar el formulario con los datos actuales
+      document.getElementById('modalTitle').textContent = "Editar Producto";
+      document.getElementById('prodIdHidden').value = producto.id; // Guardar ID
+      document.getElementById('nombreProd').value = producto.nombre;
+      document.getElementById('costoProd').value = producto.costo;
+      document.getElementById('margenProd').value = producto.margen;
+
+      document.getElementById('modalOverlay').style.display = 'flex';
+      document.getElementById('nombreProd').focus();
+    }
+
+    // Función unificada para GUARDAR (Nuevo o Editado)
+    async function guardarCambiosProducto() {
+      const idStr = document.getElementById('prodIdHidden').value;
       const nombre = document.getElementById('nombreProd').value.trim();
       const costo = parseFloat(document.getElementById('costoProd').value);
       const margen = parseFloat(document.getElementById('margenProd').value);
 
       if (!nombre || isNaN(costo) || isNaN(margen)) {
-        alert("Por favor completa todos los campos.");
+        alert("Por favor completa todos los campos correctamente.");
         return;
       }
 
-      productos.unshift({ id: Date.now(), nombre, costo, margen });
+      if (idStr === '') {
+        // --- ES UN NUEVO PRODUCTO ---
+        productos.unshift({ id: Date.now(), nombre, costo, margen });
+      } else {
+        // --- ES EDITAR UNO EXISTENTE ---
+        const idNum = parseInt(idStr);
+        // Buscar el índice del producto
+        const indice = productos.findIndex(p => p.id === idNum);
+        if (indice !== -1) {
+          // Actualizar los datos del producto en el array
+          productos[indice].nombre = nombre;
+          productos[indice].costo = costo;
+          productos[indice].margen = margen;
+        }
+      }
+
       cerrarModal();
       renderizar();
-      await guardarEnNube();
+      await guardarEnNube(); // Sincronizar con Firebase
     }
 
     async function eliminarProducto(id) {
@@ -164,7 +227,7 @@
       const filtrados = productos.filter(p => p.nombre.toLowerCase().includes(query));
 
       if (filtrados.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#94a3b8; margin-top:20px;">No hay productos registrados.</p>';
+        container.innerHTML = '<p style="text-align:center; color:#94a3b8; margin-top:20px; font-size:0.9rem;">No hay productos.</p>';
         return;
       }
 
@@ -178,7 +241,12 @@
           <div class="card-info">
             <h3>${p.nombre}</h3>
             <p>Costo: $${p.costo.toFixed(2)} | Ganancia: ${p.margen}%</p>
-            <button class="btn-del" onclick="eliminarProducto(${p.id})">Eliminar</button>
+            <div class="card-actions">
+              <!-- BOTÓN EDITAR -->
+              <button class="btn-action btn-edit" onclick="abrirModalParaEditar(${p.id})">✏️ Editar</button>
+              <!-- BOTÓN ELIMINAR -->
+              <button class="btn-action btn-del" onclick="eliminarProducto(${p.id})">🗑️ Borrar</button>
+            </div>
           </div>
           <div class="card-prices">
             <div class="price-usd">$${precioUSD.toFixed(2)}</div>
@@ -190,6 +258,7 @@
     }
 
     sincronizarDesdeNube();
+    // Sondeo automático cada 10 segundos
     setInterval(sincronizarDesdeNube, 10000);
   </script>
 </body>
